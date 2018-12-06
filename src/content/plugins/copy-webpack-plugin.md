@@ -1,161 +1,396 @@
----
-title: CopyWebpackPlugin
-source: https://raw.githubusercontent.com/webpack-contrib/copy-webpack-plugin/master/README.md
-edit: https://github.com/webpack-contrib/copy-webpack-plugin/edit/master/README.md
-repo: https://github.com/webpack-contrib/copy-webpack-plugin
----
-Copies individual files or entire directories to the build directory.
+[![npm][npm]][npm-url]
+[![node][node]][node-url]
+[![deps][deps]][deps-url]
+[![test][test]][test-url]
+[![coverage][cover]][cover-url]
+[![chat][chat]][chat-url]
 
-## Install
+<div align="center">
+  <a href="https://github.com/webpack/webpack">
+    <img width="200" height="200"
+      src="https://webpack.js.org/assets/icon-square-big.svg">
+  </a>
+  <h1>Copy Webpack Plugin</h1>
+  <p>将单个文件或整个目录复制到构建目录.</p>
+</div>
 
+<h2 align="center">安装</h2>
+
+```bash
+npm i -D copy-webpack-plugin
 ```
-npm install --save-dev copy-webpack-plugin
+
+<h2 align="center">用法</h2>
+
+**webpack.config.js**
+```js
+const CopyWebpackPlugin = require('copy-webpack-plugin')
+
+const config = {
+  plugins: [
+    new CopyWebpackPlugin([ ...patterns ], options)
+  ]
+}
 ```
 
-## Usage
+> ℹ️ 如果你希望`webpack-dev-server`在开发过程中将文件写入输出目录，你可以关注 [`write-file-webpack-plugin`](https://github.com/gajus/write-file-webpack-plugin) 。
 
-`new CopyWebpackPlugin([patterns], options)`
+### `模式`
 
-A pattern looks like:
-`{ from: 'source', to: 'dest' }`
+一个简单的模式是这样的
 
-Or, in the simple case of just a `from` with the default destination, you can use a string primitive instead of an object:
-`'source'`
+```js
+{ from: 'source', to: 'dest' }
+```
 
-###
+或者, in case of just a `from` with the default destination, you can also use a `{String}` as shorthand instead of an `{Object}`
 
-| Name | Required | Default     | Details                                                 |
-|------|----------|------------ |---------------------------------------------------------|
-| `from` | Y        |             | _examples:_<br>'relative/file.txt'<br>'/absolute/file.txt'<br>'relative/dir'<br>'/absolute/dir'<br>'\*\*/\*'<br>{glob:'\*\*/\*', dot: true}<br><br>Globs accept [minimatch options](https://github.com/isaacs/minimatch) |
-| `to`   | N        | output root if `from` is file or dir<br><br>resolved glob path if `from` is glob | _examples:_<br>'relative/file.txt'<br>'/absolute/file.txt'<br>'relative/dir'<br>'/absolute/dir'<br>'relative/[name].[ext]'<br>'/absolute/[name].[ext]'<br><br>Templates are [file-loader patterns](/loaders/file-loader/) |
-| `toType` | N | **'file'** if `to` has extension or `from` is file<br><br>**'dir'** if `from` is directory, `to` has no extension or ends in '/'<br><br>**'template'** if `to` contains [a template pattern](/loaders/file-loader/) | |
-| `context` | N | options.context \|\| compiler.options.context | A path that determines how to interpret the `from` path |
-| `flatten` | N | false | Removes all directory references and only copies file names<br><br>If files have the same name, the result is non-deterministic |
-| `ignore` | N | [] | Additional globs to ignore for this pattern |
-| `transform` | N | function(content, path) {<br>&nbsp;&nbsp;return content;<br>} | Function that modifies file contents before writing to webpack |
-| `force` | N | false | Overwrites files already in compilation.assets (usually added by other plugins) |
+或者，也可以简化不使用对象，只写一个字符串的作为 `from` 的默认值。
 
-#### Available options:
+```js
+'source'
+```
 
-| Name | Default | Details |
-| ---- | ------- | ------- |
-| `context` | compiler.options.context | A path that determines how to interpret the `from` path, shared for all patterns |
-| `ignore` | [] | Array of globs to ignore (applied to `from`) |
-| `copyUnmodified` | false | Copies files, regardless of modification when using watch or webpack-dev-server. All files are copied on first build, regardless of this option. |
-| `debug` | **'warning'** | _options:_<br>**'warning'** - only warnings<br>**'info'** or true - file location and read info<br>**'debug'** - very detailed debugging info
+|选项名|类型|默认值|描述|
+|:--:|:--:|:-----:|:----------|
+|[`from`](#from)|`{String\|Object}`|`undefined`|Globs接受 [minimatch选项](https://github.com/isaacs/minimatch)|
+|[`fromArgs`](#fromArgs)|`{Object}`|`{ cwd: context }`| 除了下面的还可以参照 [`node-glob` 选项](https://github.com/isaacs/node-glob#options) |
+|[`to`](#to)|`{String\|Object}`|`undefined`|如果 `from` 是文件或者路径则返回路径，如果 `from` 是glob选项则解析glob路径|
+|[`toType`](#toType)|`{String}`|``|[toType 选项](#totype)|
+|[`test`](#test)|`{RegExp}`|``|用于提取要在`to`模板中使用的元素的模式|
+|[`force`](#force)|`{Boolean}`|`false`|覆盖已经在`compilation.assets`中的文件（通常由其他插件/加载器添加）|
+|[`ignore`](#ignore)|`{Array}`|`[]`|要忽略这种模式的Globs|
+|`flatten`|`{Boolean}`|`false`|删除所有目录引用，仅复制文件名。 ⚠️ 如果文件具有相同的名称，则结果是不确定的|
+|[`transform`](#transform)|`{Function\|Promise}`|`(content, path) => content`|复制之前使用 Function 或 Promise 修改文件。|
+|[`transformPath`](#transformPath)|`{Function\|Promise}`|`(targetPath, sourcePath) => path`|Function 或者 Promise 修改文件写入路径。|
+|[`cache`](#cache)|`{Boolean\|Object}`|`false`|启用`transform`缓存。 您可以使用`{cache：{key：'my-cache-key'}}`来使缓存无效。|
+|[`context`](#context)|`{String}`|`options.context \|\| compiler.options.context`|确定如何解释`from`的路径|
 
-### Examples
+### `from`
 
-```javascript
-const CopyWebpackPlugin = require('copy-webpack-plugin');
-const path = require('path');
+**webpack.config.js**
+```js
+[
+  new CopyWebpackPlugin([
+    'relative/path/to/file.ext',
+    '/absolute/path/to/file.ext',
+    'relative/path/to/dir',
+    '/absolute/path/to/dir',
+    '**/*',
+    { glob: '\*\*/\*', dot: true }
+  ], options)
+]
+```
 
-module.exports = {
-    context: path.join(__dirname, 'app'),
-    devServer: {
-        // This is required for older versions of webpack-dev-server
-        // if you use absolute 'to' paths. The path should be an
-        // absolute path to your build destination.
-        outputPath: path.join(__dirname, 'build')
+### `to`
+
+**webpack.config.js**
+```js
+[
+  new CopyWebpackPlugin([
+    { from: '**/*', to: 'relative/path/to/dest/' },
+    { from: '**/*', to: '/absolute/path/to/dest/' }
+  ], options)
+]
+```
+
+### `toType`
+
+|名称|类型|默认值|描述|
+|:--:|:--:|:-----:|:----------|
+|**`'dir'`**|`{String}`|`undefined`|如果`from`是目录，`to`没有扩展名或以/'结尾|
+|**`'file'`**|`{String}`|`undefined`|如果`to`有扩展名或`from`是文件|
+|**`'template'`**|`{String}`|`undefined`|如果`to`包含 [模板模式](https://github.com/webpack-contrib/file-loader#placeholders)|
+
+#### `'dir'`
+
+**webpack.config.js**
+```js
+[
+  new CopyWebpackPlugin([
+    {
+      from: 'path/to/file.txt',
+      to: 'directory/with/extension.ext',
+      toType: 'dir'
+    }
+  ], options)
+]
+```
+
+#### `'file'`
+
+**webpack.config.js**
+```js
+[
+  new CopyWebpackPlugin([
+    {
+      from: 'path/to/file.txt',
+      to: 'file/without/extension',
+      toType: 'file'
     },
-    plugins: [
-        new CopyWebpackPlugin([
-            // {output}/file.txt
-            { from: 'from/file.txt' },
-            
-            // equivalent
-            'from/file.txt',
-
-            // {output}/to/file.txt
-            { from: 'from/file.txt', to: 'to/file.txt' },
-            
-            // {output}/to/directory/file.txt
-            { from: 'from/file.txt', to: 'to/directory' },
-
-            // Copy directory contents to {output}/
-            { from: 'from/directory' },
-            
-            // Copy directory contents to {output}/to/directory/
-            { from: 'from/directory', to: 'to/directory' },
-            
-            // Copy glob results to /absolute/path/
-            { from: 'from/directory/**/*', to: '/absolute/path' },
-
-            // Copy glob results (with dot files) to /absolute/path/
-            {
-                from: {
-                    glob:'from/directory/**/*',
-                    dot: true
-                },
-                to: '/absolute/path'
-            },
-
-            // Copy glob results, relative to context
-            {
-                context: 'from/directory',
-                from: '**/*',
-                to: '/absolute/path'
-            },
-            
-            // {output}/file/without/extension
-            {
-                from: 'path/to/file.txt',
-                to: 'file/without/extension',
-                toType: 'file'
-            },
-            
-            // {output}/directory/with/extension.ext/file.txt
-            {
-                from: 'path/to/file.txt',
-                to: 'directory/with/extension.ext',
-                toType: 'dir'
-            }
-        ], {
-            ignore: [
-                // Doesn't copy any files with a txt extension    
-                '*.txt',
-                
-                // Doesn't copy any file, even if they start with a dot
-                '**/*',
-
-                // Doesn't copy any file, except if they start with a dot
-                { glob: '**/*', dot: false }
-            ],
-
-            // By default, we only copy modified files during
-            // a watch or webpack-dev-server build. Setting this
-            // to `true` copies all files.
-            copyUnmodified: true
-        })
-    ]
-};
+  ], options)
+]
 ```
 
-### FAQ
+#### `'template'`
 
-#### "EMFILE: too many open files" or "ENFILE: file table overflow"
+**webpack.config.js**
+```js
+[
+  new CopyWebpackPlugin([
+    {
+      from: 'src/',
+      to: 'dest/[name].[hash].[ext]',
+      toType: 'template'
+    }
+  ], options)
+]
+```
 
-Globally patch fs with [graceful-fs](https://www.npmjs.com/package/graceful-fs)
+### `test`
 
-`npm install graceful-fs --save-dev`
+定义`{RegExp}`以匹配文件路径的某些部分。 可以使用`[N]`占位符在name属性中重用这些捕获组。 请注意，`[0]`将替换为文件的整个路径，而`[1]`将包含`{RegExp}`的第一个捕获括号，依此类推......
 
-At the top of your webpack config, insert this
+**webpack.config.js**
+```js
+[
+  new CopyWebpackPlugin([
+    {
+      from: '*/*',
+      to: '[1]-[2].[hash].[ext]',
+      test: /([^/]+)\/(.+)\.png$/
+    }
+  ], options)
+]
+```
 
-    const fs = require('fs');
-    const gracefulFs = require('graceful-fs');
-    gracefulFs.gracefulify(fs);
+### `force`
 
-See [this issue](https://github.com/kevlened/copy-webpack-plugin/issues/59#issuecomment-228563990) for more details
+**webpack.config.js**
+```js
+[
+  new CopyWebpackPlugin([
+    { from: 'src/**/*', to: 'dest/', force: true }
+  ], options)
+]
+```
 
-#### This doesn't copy my files with webpack-dev-server
+### `ignore`
 
-Starting in version [3.0.0](https://github.com/kevlened/copy-webpack-plugin/blob/master/CHANGELOG.md#300-may-14-2016), we stopped using fs to copy files to the filesystem and started depending on webpack's [in-memory filesystem](https://webpack.github.io/docs/webpack-dev-server.html#content-base):
+**webpack.config.js**
+```js
+[
+  new CopyWebpackPlugin([
+    { from: 'src/**/*', to: 'dest/', ignore: [ '*.js' ] }
+  ], options)
+]
+```
 
-> ... webpack-dev-server will serve the static files in your build folder. It’ll watch your source files for changes and when changes are made the bundle will be recompiled. **This modified bundle is served from memory at the relative path specified in publicPath (see API)**. It will not be written to your configured output directory.
+### `flatten`
 
-If you must have webpack-dev-server write to your output directory, you can force it with the [write-file-webpack-plugin](https://github.com/gajus/write-file-webpack-plugin).
+**webpack.config.js**
+```js
+[
+  new CopyWebpackPlugin([
+    { from: 'src/**/*', to: 'dest/', flatten: true }
+  ], options)
+]
+```
 
-## Maintainers
+### `transform`
+
+#### `{Function}`
+
+**webpack.config.js**
+```js
+[
+  new CopyWebpackPlugin([
+    {
+      from: 'src/*.png',
+      to: 'dest/',
+      transform (content, path) {
+        return optimize(content)
+      }
+    }
+  ], options)
+]
+```
+
+#### `{Promise}`
+
+**webpack.config.js**
+```js
+[
+  new CopyWebpackPlugin([
+    {
+      from: 'src/*.png',
+      to: 'dest/',
+      transform (content, path) {
+        return Promise.resolve(optimize(content))
+      }
+  }
+  ], options)
+]
+```
+
+### `transformPath`
+
+#### `{Function}`
+
+**webpack.config.js**
+```js
+[
+  new CopyWebpackPlugin([
+    {
+      from: 'src/*.png',
+      to: 'dest/',
+      transformPath (targetPath, absolutePath) {
+        return 'newPath';
+      }
+    }
+  ], options)
+]
+```
+
+#### `{Promise}`
+
+**webpack.config.js**
+```js
+[
+  new CopyWebpackPlugin([
+    {
+      from: 'src/*.png',
+      to: 'dest/',
+      transformPath (targePath, absolutePath) {
+        return Promise.resolve('newPath')
+      }
+  }
+  ], options)
+]
+```
+
+
+### `cache`
+
+**webpack.config.js**
+```js
+[
+  new CopyWebpackPlugin([
+    {
+      from: 'src/*.png',
+      to: 'dest/',
+      transform (content, path) {
+        return optimize(content)
+      },
+      cache: true
+    }
+  ], options)
+]
+```
+
+### `context`
+
+**webpack.config.js**
+```js
+[
+  new CopyWebpackPlugin([
+    { from: 'src/*.txt', to: 'dest/', context: 'app/' }
+  ], options)
+]
+```
+
+<h2 align="center">选项</h2>
+
+|选项|类型|默认值|描述|
+|:--:|:--:|:-----:|:----------|
+|[`debug`](#debug)|`{String}`|**`'warning'`**|[Debug 选项](#debug)|
+|[`ignore`](#ignore)|`{Array}`|`[]`|要忽略的数组 (应用到 `from`)|
+|[`context`](#context)|`{String}`|`compiler.options.context`|确定如何解释`from`的路径, 所有模式都有效|
+|[`copyUnmodified`](#copyUnmodified)|`{Boolean}`|`false`|使用watch或`webpack-dev-server`时，无论修改如何，都会复制文件。 无论此选项如何，所有文件都在第一次构建时复制。|
+
+### `debug`
+
+|名称|类型|默认值|描述|
+|:--:|:--:|:-----:|:----------|
+|**`'info'`**|`{String\|Boolean}`|`false`|文件位置和读取信息|
+|**`'debug'`**|`{String}`|`false`|非常详细的调试信息|
+|**`'warning'`**|`{String}`|`true`|只是警告信息|
+
+#### `'info'`
+
+**webpack.config.js**
+```js
+[
+  new CopyWebpackPlugin(
+    [ ...patterns ],
+    { debug: 'info' }
+  )
+]
+```
+
+#### `'debug'`
+
+**webpack.config.js**
+```js
+[
+  new CopyWebpackPlugin(
+    [ ...patterns ],
+    { debug: 'debug' }
+  )
+]
+```
+
+#### `'warning' (default)`
+
+**webpack.config.js**
+```js
+[
+  new CopyWebpackPlugin(
+    [ ...patterns ],
+    { debug: true }
+  )
+]
+```
+
+### `ignore`
+
+**webpack.config.js**
+```js
+[
+  new CopyWebpackPlugin(
+    [ ...patterns ],
+    { ignore: [ '*.js', '*.css' ] }
+  )
+]
+```
+
+### `context`
+
+**webpack.config.js**
+```js
+[
+  new CopyWebpackPlugin(
+    [ ...patterns ],
+    { context: '/app' }
+  )
+]
+```
+
+### `copyUnmodified`
+
+> ℹ️ 在使用`webpack --watch` 或者`webpack-dev-server` 构建的时候，默认只是复制**修改的** 文件。设置为 `true`的时候就复制所有的文件。
+
+**webpack.config.js**
+```js
+[
+  new CopyWebpackPlugin(
+    [ ...patterns ],
+    { copyUnmodified: true }
+  )
+]
+```
+
+<h2 align="center">维护者</h2>
 
 <table>
   <tbody>
